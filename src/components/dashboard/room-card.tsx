@@ -1,8 +1,8 @@
 import Link from "next/link"
-import { FileText, Layers, Clock } from "lucide-react"
+import { FileText, Layers, Clock, Crown, Users } from "lucide-react"
 import type { Room } from "@/src/types/index"
 
-export function RoomCard({ room }: { room: Room }) {
+export function RoomCard({ room, isOwner }: { room: Room; isOwner: boolean }) {
     return (
         <Link
             href={`/salas/${room.id}`}
@@ -14,7 +14,7 @@ export function RoomCard({ room }: { room: Room }) {
                     style={{ backgroundColor: room.color }}
                     aria-hidden="true"
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {room.subject}
                     </p>
@@ -22,6 +22,22 @@ export function RoomCard({ room }: { room: Room }) {
                         {room.name}
                     </h3>
                 </div>
+                <span
+                    className={
+                        isOwner
+                            ? "flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                            : "flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+                    }
+                >
+                    {isOwner ? (
+                        <>
+                            <Crown className="h-3 w-3" aria-hidden="true" />
+                            Propietario
+                        </>
+                    ) : (
+                        "Miembro"
+                    )}
+                </span>
             </div>
 
             <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
@@ -49,6 +65,10 @@ export function RoomCard({ room }: { room: Room }) {
                 <span className="flex items-center gap-1">
                     <Layers className="h-3.5 w-3.5" aria-hidden="true" />
                     {room.flashcardCount} tarjetas
+                </span>
+                <span className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                    {room.members.length}
                 </span>
                 <span className="ml-auto flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />

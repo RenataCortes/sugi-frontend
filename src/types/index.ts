@@ -26,6 +26,12 @@ export interface Flashcard {
     mastery: "nueva" | "aprendiendo" | "dominada"
 }
 
+export interface RoomMember {
+    id: string
+    name: string
+    avatarColor: string
+}
+
 export interface Room {
     id: string
     name: string
@@ -36,6 +42,14 @@ export interface Room {
     flashcardCount: number
     lastActivity: string
     progress: number
+    /** Id del usuario que creó la sala (único que puede administrarla). */
+    ownerId: string
+    /** Nombre del propietario, para mostrarlo en la UI. */
+    ownerName: string
+    /** Código para que otras personas se unan a la sala. */
+    code: string
+    /** Miembros de la sala (incluye al propietario). */
+    members: RoomMember[]
 }
 
 export interface ChatCitation {

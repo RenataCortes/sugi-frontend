@@ -2,26 +2,37 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Search, BookMarked, FileText, Layers } from "lucide-react"
+import { Plus, Search, BookMarked, FileText, Layers, LogIn } from "lucide-react"
 import { Topbar } from "@/src/components/app/topbar"
 import { RoomCard } from "@/src/components/dashboard/room-card"
 import { Button } from "@/src/components/ui/button"
 import { Input, Field } from "@/src/components/ui/input"
 import { Modal } from "@/src/components/ui/modal"
-import { useDataStore } from "@/src/store/useDataStore"
+import { useDataStore, isRoomMember, isRoomOwner } from "@/src/store/useDataStore"
 import { useAuthStore } from "@/src/store/useAuthStore"
 
 export default function DashboardPage() {
     const router = useRouter()
-    const rooms = useDataStore((s) => s.rooms)
+    const allRooms = useDataStore((s) => s.rooms)
     const createRoom = useDataStore((s) => s.createRoom)
+    const joinRoom = useDataStore((s) => s.joinRoom)
     const user = useAuthStore((s) => s.user)
+
+    // Solo se muestran las salas donde el usuario es propietario o miembro.
+    const rooms = useMemo(
+        () => allRooms.filter((r) => isRoomMember(r, user?.id)),
+        [allRooms, user?.id],
+    )
 
     const [query, setQuery] = useState("")
     const [open, setOpen] = useState(false)
     const [name, setName] = useState("")
     const [subject, setSubject] = useState("")
     const [description, setDescription] = useState("")
+
+    const [joinOpen, setJoinOpen] = useState(false)
+    const [joinCode, setJoinCode] = useState("")
+    const [joinError, setJoinError] = useState("")
 
     const filtered = useMemo(
         () =>
@@ -38,13 +49,34 @@ export default function DashboardPage() {
 
     function handleCreate(e: React.FormEvent) {
         e.preventDefault()
-        if (!name.trim()) return
-        const id = createRoom({ name: name.trim(), subject: subject.trim(), description: description.trim() })
+        if (!name.trim() || !user) return
+        const id = createRoom(
+            { name: name.trim(), subject: subject.trim(), description: description.trim() },
+            { id: user.id, name: user.name, avatarColor: user.avatarColor },
+        )
         setOpen(false)
         setName("")
         setSubject("")
         setDescription("")
         router.push(`/salas/${id}`)
+    }
+
+    function handleJoin(e: React.FormEvent) {
+        e.preventDefault()
+        setJoinError("")
+        if (!user) return
+        const result = joinRoom(joinCode, {
+            id: user.id,
+            name: user.name,
+            avatarColor: user.avatarColor,
+        })
+        if (!result.ok) {
+            setJoinError(result.error)
+            return
+        }
+        setJoinOpen(false)
+        setJoinCode("")
+        router.push(`/salas/${result.roomId}`)
     }
 
     const stats = [
@@ -99,17 +131,27 @@ export default function DashboardPage() {
                             className="pl-9"
                         />
                     </div>
-                    <Button onClick={() => setOpen(true)}>
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                        Nueva sala
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setJoinOpen(true)}>
+                            <LogIn className="h-4 w-4" aria-hidden="true" />
+                            Unirse con código
+                        </Button>
+                        <Button onClick={() => setOpen(true)}>
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            Nueva sala
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Rooms grid */}
                 {filtered.length > 0 ? (
                     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {filtered.map((room) => (
-                            <RoomCard key={room.id} room={room} />
+                            <RoomCard
+                                key={room.id}
+                                room={room}
+                                isOwner={isRoomOwner(room, user?.id)}
+                            />
                         ))}
                     </div>
                 ) : (
@@ -159,6 +201,51 @@ export default function DashboardPage() {
                             Cancelar
                         </Button>
                         <Button type="submit">Crear sala</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                open={joinOpen}
+                onClose={() => {
+                    setJoinOpen(false)
+                    setJoinError("")
+                }}
+                title="Unirse a una sala"
+                description="Pide el código a quien creó la sala e ingrésalo aquí."
+            >
+                <form onSubmit={handleJoin} className="space-y-4">
+                    <Field label="Código de la sala" htmlFor="join-code">
+                        <Input
+                            id="join-code"
+                            placeholder="Ej. BIO123"
+                            value={joinCode}
+                            onChange={(e) => {
+                                setJoinCode(e.target.value.toUpperCase())
+                                setJoinError("")
+                            }}
+                            autoCapitalize="characters"
+                            maxLength={6}
+                            className="uppercase tracking-widest"
+                        />
+                    </Field>
+                    {joinError && (
+                        <p className="text-sm text-destructive">{joinError}</p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                setJoinOpen(false)
+                                setJoinError("")
+                            }}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button type="submit" disabled={!joinCode.trim()}>
+                            Unirme
+                        </Button>
                     </div>
                 </form>
             </Modal>

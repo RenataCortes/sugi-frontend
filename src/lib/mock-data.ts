@@ -1,5 +1,11 @@
 import type { Room, StudyDocument, Flashcard, ChatMessage, Assessment } from "@/src/types/index"
 
+/**
+ * Id ficticio del propietario de las salas de ejemplo. La app trata estas
+ * salas semilla como si te pertenecieran (ver isRoomOwner en useDataStore).
+ */
+export const SEED_OWNER_ID = "seed-user"
+
 export const mockRooms: Room[] = [
     {
         id: "biologia-celular",
@@ -12,6 +18,10 @@ export const mockRooms: Room[] = [
         flashcardCount: 24,
         lastActivity: "Hace 2 horas",
         progress: 68,
+        ownerId: SEED_OWNER_ID,
+        ownerName: "Tú",
+        code: "BIO123",
+        members: [{ id: SEED_OWNER_ID, name: "Tú", avatarColor: "oklch(0.62 0.15 155)" }],
     },
     {
         id: "calculo-diferencial",
@@ -23,6 +33,10 @@ export const mockRooms: Room[] = [
         flashcardCount: 31,
         lastActivity: "Ayer",
         progress: 42,
+        ownerId: SEED_OWNER_ID,
+        ownerName: "Tú",
+        code: "CALC42",
+        members: [{ id: SEED_OWNER_ID, name: "Tú", avatarColor: "oklch(0.51 0.19 265)" }],
     },
     {
         id: "historia-contemporanea",
@@ -34,6 +48,10 @@ export const mockRooms: Room[] = [
         flashcardCount: 18,
         lastActivity: "Hace 3 días",
         progress: 85,
+        ownerId: SEED_OWNER_ID,
+        ownerName: "Tú",
+        code: "HIST19",
+        members: [{ id: SEED_OWNER_ID, name: "Tú", avatarColor: "oklch(0.75 0.15 75)" }],
     },
 ]
 

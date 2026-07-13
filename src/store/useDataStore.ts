@@ -1,8 +1,8 @@
 "use client"
 
 import { create } from "zustand"
-import type { Room, StudyDocument, Flashcard, ChatMessage, Assessment } from "@/src/types/index"
-import { mockRooms, mockDocuments, mockFlashcards, mockChat, mockAssessments } from "@/src/lib/mock-data"
+import type { Room, RoomMember, StudyDocument, Flashcard, ChatMessage, Assessment } from "@/src/types/index"
+import { mockRooms, mockDocuments, mockFlashcards, mockChat, mockAssessments, SEED_OWNER_ID } from "@/src/lib/mock-data"
 
 const ROOM_COLORS = [
     "oklch(0.51 0.19 265)",
@@ -12,6 +12,33 @@ const ROOM_COLORS = [
     "oklch(0.6 0.13 200)",
 ]
 
+/** True si el usuario es el propietario de la sala (único que puede administrarla). */
+export function isRoomOwner(room: Room, userId?: string | null): boolean {
+    if (!userId) return false
+    // Las salas de ejemplo (semilla) se tratan como propias.
+    return room.ownerId === userId || room.ownerId === SEED_OWNER_ID
+}
+
+/** True si el usuario es propietario o miembro de la sala. */
+export function isRoomMember(room: Room, userId?: string | null): boolean {
+    if (!userId) return false
+    return isRoomOwner(room, userId) || room.members.some((m) => m.id === userId)
+}
+
+/** Genera un código legible de 6 caracteres (sin caracteres ambiguos). */
+function generateCode(existing: Room[]): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    let code = ""
+    do {
+        code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
+    } while (existing.some((r) => r.code === code))
+    return code
+}
+
+export type JoinResult =
+    | { ok: true; roomId: string; alreadyMember: boolean }
+    | { ok: false; error: string }
+
 interface DataState {
     rooms: Room[]
     documents: Record<string, StudyDocument[]>
@@ -19,7 +46,13 @@ interface DataState {
     chats: Record<string, ChatMessage[]>
     assessments: Record<string, Assessment[]>
 
-    createRoom: (input: { name: string; subject: string; description: string }) => string
+    createRoom: (
+        input: { name: string; subject: string; description: string },
+        owner: RoomMember,
+    ) => string
+    joinRoom: (code: string, member: RoomMember) => JoinResult
+    deleteRoom: (roomId: string) => void
+    removeMember: (roomId: string, userId: string) => void
     addDocuments: (roomId: string, files: File[]) => void
     markDocumentReady: (roomId: string, docId: string) => void
     addChatMessage: (roomId: string, message: ChatMessage) => void
@@ -45,15 +78,15 @@ function fileType(name: string): StudyDocument["type"] {
     return "txt"
 }
 
-export const useDataStore = create<DataState>()((set) => ({
+export const useDataStore = create<DataState>()((set, get) => ({
     rooms: mockRooms,
     documents: mockDocuments,
     flashcards: mockFlashcards,
     chats: mockChat,
     assessments: mockAssessments,
 
-    createRoom: ({ name, subject, description }) => {
-        const id = slugify(name)
+    createRoom: ({ name, subject, description }, owner) => {
+        const id = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`
         const room: Room = {
             id,
             name,
@@ -64,9 +97,13 @@ export const useDataStore = create<DataState>()((set) => ({
             flashcardCount: 0,
             lastActivity: "Recién creada",
             progress: 0,
+            ownerId: owner.id,
+            ownerName: owner.name,
+            code: generateCode([]),
+            members: [owner],
         }
         set((state) => ({
-            rooms: [room, ...state.rooms],
+            rooms: [{ ...room, code: generateCode(state.rooms) }, ...state.rooms],
             documents: { ...state.documents, [id]: [] },
             flashcards: { ...state.flashcards, [id]: [] },
             chats: {
@@ -84,6 +121,48 @@ export const useDataStore = create<DataState>()((set) => ({
         }))
         return id
     },
+
+    joinRoom: (code, member) => {
+        const normalized = code.trim().toUpperCase()
+        if (!normalized) return { ok: false, error: "Ingresa un código." }
+        const room = get().rooms.find((r) => r.code === normalized)
+        if (!room) return { ok: false, error: "No encontramos una sala con ese código." }
+
+        if (isRoomMember(room, member.id)) {
+            return { ok: true, roomId: room.id, alreadyMember: true }
+        }
+
+        set((state) => ({
+            rooms: state.rooms.map((r) =>
+                r.id === room.id ? { ...r, members: [...r.members, member] } : r,
+            ),
+        }))
+        return { ok: true, roomId: room.id, alreadyMember: false }
+    },
+
+    deleteRoom: (roomId) =>
+        set((state) => {
+            const { [roomId]: _d, ...documents } = state.documents
+            const { [roomId]: _f, ...flashcards } = state.flashcards
+            const { [roomId]: _c, ...chats } = state.chats
+            const { [roomId]: _a, ...assessments } = state.assessments
+            return {
+                rooms: state.rooms.filter((r) => r.id !== roomId),
+                documents,
+                flashcards,
+                chats,
+                assessments,
+            }
+        }),
+
+    removeMember: (roomId, userId) =>
+        set((state) => ({
+            rooms: state.rooms.map((r) =>
+                r.id === roomId
+                    ? { ...r, members: r.members.filter((m) => m.id !== userId) }
+                    : r,
+            ),
+        })),
 
     addDocuments: (roomId, files) => {
         const newDocs: StudyDocument[] = files.map((f, i) => ({
